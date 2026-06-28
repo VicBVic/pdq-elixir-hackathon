@@ -119,7 +119,7 @@ defmodule SchoolWeb.GameComponents do
       <h1> Choose a rule for the round! </h1>
         <%= for {rule, index} <- Enum.with_index(@rules_for_selection) do %>
           <button class="rule-selection-item" phx-click = "selected" phx-value-index={index}>
-              <span class="rule-number">{index + 1}</span><span>{School.Logic.rule_description(rule, :false)}</span>
+              <span class="rule-number">{index + 1}</span><span>{School.Logic.rule_description(rule, :true)}</span>
           </button>
         <% end %>
       <button class="rules-refresh-button" phx-click= "refresh">Refresh</button>
