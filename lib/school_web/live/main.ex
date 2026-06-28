@@ -13,22 +13,26 @@ defmodule SchoolWeb.MainLive do
     Phoenix.PubSub.subscribe(School.PubSub, "game_room")
 
     active_rules = State.get_active_rules()
-    rule_descriptions = Logic.descriptions_by_rules(active_rules)
+    active_players = State.get_active_players()
+    game_state = State.get_game_state()
+    rule_descriptions = Logic.rule_description_set(active_rules)
 
     new_socket =
       socket
       |> assign(:local_player, nil)
       |> assign(:package, package)
       |> assign(:timestamp, nil)
-      |> assign(:validation_result, :correct)
-      |> assign(:game_state, :waiting)
+      |> assign(:is_correct, true)
+      |> assign(:game_state, game_state)
       |> assign(:active_rules, active_rules)
       |> assign(:rule_descriptions, rule_descriptions)
       |> assign(:score, 0)
-      |> assign(:player_list, [])
+      |> assign(:waiting_for_other_players, false)
+      |> assign(:player_list, active_players)
 
     {:ok, new_socket}
   end
+
 
   @impl true
   def handle_event("join", %{"name" => name}, socket) do
@@ -44,11 +48,31 @@ defmodule SchoolWeb.MainLive do
   @impl true
   def handle_event("ready", _params, socket) do
     local_player = socket.assigns.local_player
-    {updated_local_player, _game_state} = State.player_ready(local_player.name)
+    {updated_local_player, state_tag} = State.player_ready(local_player.pid)
 
     new_socket =
       socket
       |> assign(:local_player, updated_local_player)
+      |> assign(:waiting_for_other_players, state_tag == :initial)
+
+    {:noreply, new_socket}
+  end
+
+  @impl true
+  def handle_event("selected", %{"index" => index}, socket) do
+    {index, _} = Integer.parse(index)
+
+    rule =
+      socket.assigns.rules_for_selection
+      |> Enum.at(index)
+
+    local_player = socket.assigns.local_player
+    {player, state_tag} = State.rule_selected(rule, local_player.pid)
+
+    new_socket =
+      socket
+      |> assign(:local_player, player)
+      |> assign(:waiting_for_other_players, state_tag == :selecting)
 
     {:noreply, new_socket}
   end
@@ -68,6 +92,15 @@ defmodule SchoolWeb.MainLive do
   end
 
   @impl true
+  def handle_event("refresh", _parames, socket) do
+    new_socket =
+      socket
+      |> assign(:rules_for_selection, Logic.random_rules())
+
+    {:noreply, new_socket}
+  end
+
+  @impl true
   def handle_info(:next_package, socket) do
     package = Logic.generate_package()
 
@@ -81,9 +114,25 @@ defmodule SchoolWeb.MainLive do
 
   @impl true
   def handle_info({:game_start, game_state}, socket) do
+    IO.inspect("BBBB #{game_state}")
+
     new_socket =
       socket
       |> assign(:game_state, game_state)
+      |> assign(:rules_for_selection, Logic.random_rules())
+      |> assign(:waiting_for_other_players, false)
+
+    {:noreply, new_socket}
+  end
+
+  @impl true
+  def handle_info({:all_players_selected, game_state}, socket) do
+    IO.inspect("CCCCC #{game_state}")
+
+    new_socket =
+      socket
+      |> assign(:game_state, game_state)
+      |> assign(:waiting_for_other_players, false)
 
     {:noreply, new_socket}
   end
@@ -93,12 +142,13 @@ defmodule SchoolWeb.MainLive do
     new_socket =
       socket
       |> assign(:game_state, game_state)
+      |> assign(:local_player, nil)
 
     {:noreply, new_socket}
   end
 
   @impl true
-  def handle_info({:tick_update, current_game_time}, socket) do
+  def handle_info({:time_updated, current_game_time}, socket) do
     width = build_game_time_loading_bar(current_game_time)
 
     new_socket =
@@ -111,7 +161,7 @@ defmodule SchoolWeb.MainLive do
   @impl true
   def handle_info(:update_rules, socket) do
     active_rules = State.get_active_rules()
-    rule_descriptions = Logic.descriptions_by_rules(active_rules)
+    rule_descriptions = Logic.rule_description_set(active_rules)
 
     new_socket =
       socket
@@ -125,6 +175,7 @@ defmodule SchoolWeb.MainLive do
     new_socket =
       socket
       |> assign(:player_list, updated_player_list)
+      |> assign(:game_state, State.get_game_state())
 
     {:noreply, new_socket}
   end
@@ -132,13 +183,13 @@ defmodule SchoolWeb.MainLive do
   defp validation(swipe_direction, expected, socket) do
     package = socket.assigns.package
 
-    {updated_player, decision, validation_msg} =
+    {updated_player, is_correct} =
       State.update_player_score(self(), package, expected)
 
     new_socket =
       socket
-      |> assign(:validation_result, decision)
-      |> assign(:validation_msg, validation_msg)
+      |> assign(:is_correct, is_correct)
+      |> assign(:validation_msg, "TODO")
       |> assign(:local_player, updated_player)
       |> assign(:score, updated_player.score)
       |> push_event(swipe_direction, %{})

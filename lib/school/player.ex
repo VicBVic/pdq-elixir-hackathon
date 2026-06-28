@@ -3,11 +3,13 @@ defmodule School.Player do
           name: String.t(),
           score: integer(),
           pid: pid(),
-          ready?: boolean()
+          ready?: boolean(),
+          selected?: boolean()
         }
 
   defstruct name: nil,
             score: 0,
             pid: nil,
-            ready?: false
+            ready?: false,
+            selected?: false
 end

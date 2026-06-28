@@ -10,10 +10,11 @@ defmodule School.Application do
     children = [
       {Phoenix.PubSub, name: School.PubSub},
       School.State,
+      School.Clock,
       # Start a worker by calling: School.Worker.start_link(arg)
       # {School.Worker, arg},
       # Start to serve requests, typically the last entry
-      SchoolWeb.Endpoint
+      SchoolWeb.Endpoint,
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

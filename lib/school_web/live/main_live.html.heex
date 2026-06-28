@@ -9,8 +9,14 @@
 </header>
 
 <main class="game-layout">
+  <!-- COLUMN 2: RULES -->
+    <.postal_regulations rule_descriptions={@rule_descriptions} />
+
   <!-- COLUMN 1: CARD -->
-  <%= if @local_player && @game_state == :in_progress do %>
+  <%= cond do %>
+  <% @local_player && @waiting_for_other_players -> %>
+    <.waiting_for_other_players />
+  <% @local_player && @game_state == :running -> %>
     <section class="inspection-area">
       <.score_banner player_name={@local_player.name} score={@score} />
 
@@ -19,18 +25,20 @@
       <.package_inspection_form
         package={@package}
         timestamp={@timestamp}
-        validation_result={@validation_result}
+        is_correct={@is_correct}
       />
     </section>
-  <% else %>
+  <% @local_player &&@game_state == :selecting -> %>
+    <.rules_selection local_player={@local_player} rules_for_selection={@rules_for_selection}/>
+  <% !@local_player && @game_state != :initial -> %>
+    <.wait_for_round_to_end />
+  <% true -> %>
     <.ready_section local_player={@local_player} />
   <% end %>
   
-<!-- COLUMN 2: RULES -->
-  <.postal_regulations rule_descriptions={@rule_descriptions} />
   
 <!-- COLUMN 3: LEADERBOARD -->
-  <.leaderboard player_list={@player_list} />
+  <.leaderboard player_list={@player_list} game_state={@game_state} />
 </main>
 
 <.match_end_overlay :if={@game_state == :ended} player_list={@player_list} />

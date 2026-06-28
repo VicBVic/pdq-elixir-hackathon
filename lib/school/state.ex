@@ -1,249 +1,211 @@
 defmodule School.State do
   use GenServer
 
-  alias School.Player
-  alias School.Logic
+  # game states:
+  # :initial_state
+  # :select_screen
+  # :before_ready
+  # :running  <---- (make players unable to join here!!)
+  # :finished
 
-  @max_active_rules 5
-  @available_rules [
-    :rule1,
-    :rule2,
-    :rule3,
-    :rule4,
-    :rule5,
-    :rule6,
-    :rule7,
-    :rule8,
-    :rule9,
-    :rule10
-  ]
-  @max_game_time_seconds 240
+  @max_time 5
+  @type t :: %School.State{
+          tag: :initial | :selecting | :running | :finished,
+          players: %{pid() => School.Player.t()},
+          rules: [School.Logic.rule()]
+        }
 
-  defstruct active_rules: [],
-            players: [],
-            current_game_time: 0
+  defstruct tag: :initial,
+            players: %{},
+            rules: [],
+            ready: 0,
+            selected: 0,
+            time: 0
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %__MODULE__{}, name: __MODULE__)
   end
 
   @impl true
-  def init(state) do
-    {:ok, state}
+  def init(_) do
+    Phoenix.PubSub.subscribe(School.PubSub, "clock")
+    {:ok, %School.State{}}
+  end
+
+  @impl true
+  def handle_call({:add_player, name, pid}, _, state) do
+    player = %School.Player{name: name, pid: pid}
+    new_players = Map.put(state.players, pid, player)
+    Process.monitor(pid)
+    IO.inspect("MONITORED")
+    state = %{state | players: new_players}
+    Phoenix.PubSub.broadcast(School.PubSub, "game_room", {:update_player_list, Map.values(new_players)})
+    {:reply, player, state}
+  end
+
+  @impl true
+  def handle_call({:rule_selected, rule, pid}, _from, state) do
+    player = Map.get(state.players, pid)
+
+    if state.tag != :selecting do
+      {:reply, {player, state.tag}, state}
+    else
+
+      if player == nil || player.selected? == true do
+        {:reply, {player, state.tag}, state}
+      else
+        player = %{player | selected?: true}
+        total_selected = state.selected + 1
+        new_players = Map.put(state.players, pid, player)
+        next_tag = if total_selected == map_size(state.players), do: :running, else: :selecting
+
+        state = %{
+          state
+          | rules: [rule | state.rules],
+            players: new_players,
+            tag: next_tag,
+            selected: total_selected
+        }
+
+        Phoenix.PubSub.broadcast(School.PubSub, "game_room", :update_rules)
+        if next_tag == :running, do: Phoenix.PubSub.broadcast(School.PubSub, "game_room", {:all_players_selected, :running})
+
+
+        {:reply, {player, next_tag}, state}
+      end
+    end
+  end
+
+  @impl true
+  def handle_call({:update_score, pid, decision, package}, _from, state) do
+    player = Map.get(state.players, pid)
+
+    if state.tag != :running do
+      {:reply, {player, nil}, state}
+    else
+
+      if player == nil do
+        {:reply, {player, nil}, state}
+      else
+        correct_decision =
+          if School.Logic.validate_set(state.rules, package), do: :valid, else: :invalid
+
+        was_correct = correct_decision == decision
+        delta = if was_correct, do: 1, else: -1
+
+        player = %{player | score: player.score + delta}
+        new_players = Map.put(state.players, pid, player)
+        Phoenix.PubSub.broadcast(School.PubSub, "game_room", {:update_player_list, Map.values(new_players)})
+        {:reply, {player, was_correct}, %{state | players: new_players}}
+      end
+    end
+  end
+
+  @impl true
+  def handle_call({:player_ready, pid}, _from, state) do
+    player = Map.get(state.players, pid)
+    if state.tag != :initial do
+      {:reply, {player, state.tag}, state}
+    else
+
+      if player == nil || player.ready? == true do
+        {:reply, {player, state.tag}, state}
+      else
+        player = %{player | ready?: true}
+        total_ready = state.ready + 1
+        next_tag = if total_ready == map_size(state.players), do: :selecting, else: :initial
+        new_players = Map.put(state.players, pid, player)
+        state = %{state | players: new_players, tag: next_tag, ready: total_ready}
+
+        if next_tag == :selecting, do: Phoenix.PubSub.broadcast(School.PubSub, "game_room", {:game_start, :selecting})
+        Phoenix.PubSub.broadcast(School.PubSub, "game_room", {:update_player_list, Map.values(new_players)})
+
+        {:reply, {player, next_tag}, state}
+      end
+    end
+  end
+
+  @impl true
+  def handle_call({:get_rules}, _from, state) do
+     {:reply, state.rules, state}
+  end
+
+  @impl true
+  def handle_call({:get_players}, _from, state) do
+    {:reply, Map.values(state.players), state}
+  end
+
+  @impl true
+  def handle_call({:get_game_state}, _from, state) do
+    {:reply, state.tag, state}
+  end
+
+  @impl true
+  def handle_info(:clock_tick, state) do
+    if state.tag != :running do
+      {:noreply, state}
+    else
+      time = state.time
+      time = time + 1
+
+      state = %{state | time: time}
+
+      Phoenix.PubSub.broadcast(School.PubSub, "game_room", {:time_updated, time})
+
+      if time >= @max_time do
+        state = %{state | tag: :initial, time: 0}
+        Phoenix.PubSub.broadcast(School.PubSub, "game_room", {:game_ended, state.tag})
+        {:noreply, state}
+      else
+        {:noreply, state}
+      end
+    end
+  end
+
+  @impl true
+  def handle_info({:DOWN, _, _, pid, _}, state) do
+    IO.inspect("AAA DEAD")
+    player = Map.get(state.players, pid)
+    if player == nil do
+      {:reply, state.tag, state}
+    end
+
+    new_players = Map.delete(state.players, pid)
+    Phoenix.PubSub.broadcast(School.PubSub, "game_room", {:update_player_list, Map.values(new_players)})
+    next_tag = if map_size(new_players) == 0, do: :initial, else: state.tag
+
+    {:noreply, %{state | tag: next_tag, players: new_players}}
+  end
+
+  def player_ready(pid) do
+    GenServer.call(__MODULE__, {:player_ready, pid})
   end
 
   def add_player(name, pid) do
     GenServer.call(__MODULE__, {:add_player, name, pid})
   end
 
-  def player_ready(name) do
-    GenServer.call(__MODULE__, {:player_ready, name})
+  def update_player_score(pid, package, decision) do
+    GenServer.call(__MODULE__, {:update_score, pid, decision, package})
   end
 
-  def set_random_rule do
-    GenServer.cast(__MODULE__, :set_random_rule)
+  def get_active_rules() do
+    GenServer.call(__MODULE__, {:get_rules})
   end
 
-  def get_active_rules do
-    GenServer.call(__MODULE__, :get_active_rules)
+  def get_active_players() do
+    GenServer.call(__MODULE__, {:get_players})
   end
 
-  def update_player_score(pid, package, expected) do
-    GenServer.call(__MODULE__, {:update_player_score, pid, package, expected})
+  def get_game_state() do
+    GenServer.call(__MODULE__, {:get_game_state})
   end
 
-  @impl true
-  def handle_call({:player_ready, name}, _from, state) do
-    {[player], remaining_players} =
-      Enum.split_with(state.players, fn player -> player.name == name end)
-
-    readied_player = Map.put(player, :ready?, true)
-    updated_player_list = [readied_player | remaining_players]
-    game_state = maybe_start_game(updated_player_list)
-
-    new_state =
-      state
-      |> Map.put(:players, updated_player_list)
-      |> Map.put(:game_state, game_state)
-
-    Phoenix.PubSub.broadcast(
-      School.PubSub,
-      "game_room",
-      {:update_player_list, sort_by_score(updated_player_list)}
-    )
-
-    {:reply, {readied_player, game_state}, new_state}
-  end
-
-  @impl true
-  def handle_call(:get_active_rules, _from, state) do
-    {:reply, state.active_rules, state}
-  end
-
-  @impl true
-  def handle_call({:update_player_score, pid, package, expected}, _from, state) do
-    {[player], remaining_players} =
-      Enum.split_with(state.players, fn player -> player.pid == pid end)
-
-    {validation_result, validation_msg} =
-      Logic.validate(package, state.active_rules)
-
-    decision =
-      if validation_result == expected,
-        do: :correct,
-        else: :incorrect
-
-    score_delta =
-      if decision == :correct,
-        do: 1,
-        else: -1
-
-    new_score = max(player.score + score_delta, 0)
-
-    updated_player = Map.put(player, :score, new_score)
-
-    updated_player_list = [updated_player | remaining_players]
-
-    Phoenix.PubSub.broadcast(
-      School.PubSub,
-      "game_room",
-      {:update_player_list, sort_by_score(updated_player_list)}
-    )
-
-    new_state = Map.put(state, :players, updated_player_list)
-
-    {:reply, {updated_player, decision, validation_msg}, new_state}
-  end
-
-  @impl true
-  def handle_call({:add_player, name, pid}, _from, state) do
-    Process.monitor(pid)
-
-    new_player = %Player{
-      pid: pid,
-      name: name
-    }
-
-    updated_player_list = [new_player | state.players]
-    new_state = Map.put(state, :players, updated_player_list)
-
-    Phoenix.PubSub.broadcast(
-      School.PubSub,
-      "game_room",
-      {:update_player_list, updated_player_list}
-    )
-
-    {:reply, new_player, new_state}
-  end
-
-  @impl true
-  def handle_cast(:set_random_rule, state) do
-    new_state = maybe_activate_random_rule(state)
-
-    {:noreply, new_state}
-  end
-
-  @impl true
-  def handle_info(:tick, state) do
-    Process.send_after(self(), :tick, 1_000)
-
-    current_game_time = state.current_game_time
-
-    Phoenix.PubSub.broadcast(
-      School.PubSub,
-      "game_room",
-      {:tick_update, current_game_time}
-    )
-
-    state_with_new_rule =
-      if rem(current_game_time, 30) == 0 do
-        Phoenix.PubSub.broadcast(
-          School.PubSub,
-          "game_room",
-          :update_rules
-        )
-
-        maybe_activate_random_rule(state)
-      else
-        state
-      end
-
-    if current_game_time > @max_game_time_seconds do
-      Phoenix.PubSub.broadcast(
-        School.PubSub,
-        "game_room",
-        {:game_ended, :ended}
-      )
-    end
-
-    new_state =
-      Map.put(state_with_new_rule, :current_game_time, current_game_time + 1)
-
-    {:noreply, new_state}
-  end
-
-  # handle killed PID
-  # {:DOWN, #Reference<0.4092222473.1123811329.133049>, :process, #PID<0.664.0>, {:shutdown, :closed}}
-  @impl true
-  def handle_info({:DOWN, _, _, pid, _}, state) do
-    player_list = state.players
-    updated_player_list = Enum.reject(player_list, fn player -> player.pid == pid end)
-    new_state = Map.put(state, :players, updated_player_list)
-
-    Phoenix.PubSub.broadcast(
-      School.PubSub,
-      "game_room",
-      {:update_player_list, updated_player_list}
-    )
-
-    {:noreply, new_state}
+  def rule_selected(rule, pid) do
+    GenServer.call(__MODULE__, {:rule_selected, rule, pid})
   end
 
   def max_game_time do
-    @max_game_time_seconds
-  end
-
-  defp maybe_activate_random_rule(state) do
-    if length(state.active_rules) < @max_active_rules do
-      activate_new_rule(state)
-    else
-      state
-    end
-  end
-
-  defp activate_new_rule(state) do
-    active_rules = state.active_rules
-
-    new_rule =
-      @available_rules
-      |> Enum.reject(fn rule -> rule in active_rules end)
-      |> Enum.random()
-
-    new_state =
-      Map.put(state, :active_rules, [new_rule | active_rules])
-
-    new_state
-  end
-
-  defp sort_by_score(player_list) do
-    Enum.sort(player_list, fn p1, p2 -> p1.score > p2.score end)
-  end
-
-  defp maybe_start_game(player_list) do
-    all_ready? = Enum.all?(player_list, fn player -> player.ready? end)
-
-    if all_ready? do
-      Phoenix.PubSub.broadcast(
-        School.PubSub,
-        "game_room",
-        {:game_start, :in_progress}
-      )
-
-      Process.send_after(self(), :tick, 1_000)
-
-      :in_progress
-    else
-      :waiting
-    end
+    @max_time
   end
 end

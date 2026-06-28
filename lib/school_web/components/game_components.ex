@@ -37,20 +37,21 @@ defmodule SchoolWeb.GameComponents do
 
   attr :package, :map, required: true
   attr :timestamp, :integer, required: true
-  attr :validation_result, :atom, required: true
+  attr :is_correct, :atom, required: true
 
+  @spec package_inspection_form(map()) :: Phoenix.LiveView.Rendered.t()
   def package_inspection_form(assigns) do
     ~H"""
     <div class="card-reveal-wrapper">
-      <%= case @validation_result do %>
-        <% :correct -> %>
+      <%= case @is_correct do %>
+        <% :true -> %>
           <div class="stamp-result" id={"card-#{@timestamp}"}>
             <div class="stamp-mark approved">
               <span class="stamp-label">Approved</span>
               <span class="stamp-points">+1</span>
             </div>
           </div>
-        <% :incorrect -> %>
+        <% :false -> %>
           <div class="stamp-result" id={"card-#{@timestamp}"}>
             <div class="stamp-mark rejected">
               <span class="stamp-label">Rejected</span>
@@ -97,17 +98,7 @@ defmodule SchoolWeb.GameComponents do
           </div>
         </div>
 
-        <div class="package-checks">
-          <span :if={@package.has_customs_form} class="check-tag has">
-            <span class="check-dot"></span> Customs Form
-          </span>
-          <span :if={@package.has_insurance} class="check-tag has">
-            <span class="check-dot"></span> Insurance
-          </span>
-          <span :if={@package.has_fragile_sticker} class="check-tag has">
-            <span class="check-dot"></span> Fragile Sticker
-          </span>
-        </div>
+
 
         <div class="card-actions">
           <button phx-click="decline" class="btn btn-decline">
@@ -119,6 +110,20 @@ defmodule SchoolWeb.GameComponents do
         </div>
       </div>
     </div>
+    """
+  end
+
+  def rules_selection(assigns) do
+    ~H"""
+      <div class="rules-selection">
+      <h1> Choose a rule for the round! </h1>
+        <%= for {rule, index} <- Enum.with_index(@rules_for_selection) do %>
+          <button class="rule-selection-item" phx-click = "selected" phx-value-index={index}>
+              <span class="rule-number">{index + 1}</span><span>{School.Logic.rule_description(rule, :false)}</span>
+          </button>
+        <% end %>
+      <button class="rules-refresh-button" phx-click= "refresh">Refresh</button>
+      </div>
     """
   end
 
@@ -188,6 +193,7 @@ defmodule SchoolWeb.GameComponents do
   end
 
   attr :player_list, :list, required: true
+  attr :game_state, :atom, required: true
 
   def leaderboard(assigns) do
     ~H"""
@@ -197,15 +203,35 @@ defmodule SchoolWeb.GameComponents do
       </div>
 
       <ul class="leaderboard-list">
-        <li :for={player <- @player_list} class="leaderboard-item">
-          <span class="rank rank-1">1</span>
+        <li :for={{player, index} <- Enum.with_index(Enum.sort(@player_list, fn a, b -> a.score > b.score end))} class="leaderboard-item">
+          <span class="rank rank-1">{index+1}</span>
           <div class="lb-player-info">
             <div class="lb-player-name">{player.name}</div>
+            <div class="lb-player-name">{if @game_state == :initial, do: (if player.ready?, do: "(ready)", else: "(not ready)"), else: "" }</div>
           </div>
           <div class="lb-player-score">{player.score}</div>
         </li>
       </ul>
     </div>
+    """
+  end
+
+
+  
+  def wait_for_round_to_end(assigns) do
+    ~H"""
+      <div class = "round-end-wait">
+        <h1> A round is currently ongoing, wait to join! </h1>
+        <h1> Time remaining: {} </h1>
+      </div>
+    """
+  end
+
+  def waiting_for_other_players(assigns) do
+    ~H"""
+      <div class = "other-players-wait">
+        <h1> Waiting for other players... </h1>
+      </div>
     """
   end
 
@@ -237,3 +263,16 @@ defmodule SchoolWeb.GameComponents do
     Enum.at(["🥇", "🥈", "🥉"], place)
   end
 end
+
+
+# <div class="package-checks">
+        #   <span :if={@package.has_customs_form} class="check-tag has">
+        #     <span class="check-dot"></span> Customs Form
+        #   </span>
+        #   <span :if={@package.has_insurance} class="check-tag has">
+        #     <span class="check-dot"></span> Insurance
+        #   </span>
+        #   <span :if={@package.has_fragile_sticker} class="check-tag has">
+        #     <span class="check-dot"></span> Fragile Sticker
+        #   </span>
+        # </div>

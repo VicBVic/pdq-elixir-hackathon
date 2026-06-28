@@ -1,189 +1,222 @@
 defmodule School.Logic do
-  alias School.Package
+  # @desc_rules %{
+  #   rule1: "Letters must weigh under 500g.",
+  #   rule2: "International packages require a customs form.",
+  #   rule3: "Fragile packages cannot use standard shipping.",
+  #   rule4: "Parcels over 5000g must use priority shipping.",
+  #   rule5: "Declared value over 100€ requires insurance.",
+  #   rule6: "Fragile packages must have a fragile sticker.",
+  #   rule7: "EU and international packages must use express or priority.",
+  #   rule8: "Letters cannot have insurance.",
+  #   rule9: "Standard shipping is only available for domestic packages under 2000g.",
+  #   rule10: "Fragile international packages over 1000g must use priority."
+  # }
 
-  @desc_rules %{
-    rule1: "Letters must weigh under 500g.",
-    rule2: "International packages require a customs form.",
-    rule3: "Fragile packages cannot use standard shipping.",
-    rule4: "Parcels over 5000g must use priority shipping.",
-    rule5: "Declared value over 100€ requires insurance.",
-    rule6: "Fragile packages must have a fragile sticker.",
-    rule7: "EU and international packages must use express or priority.",
-    rule8: "Letters cannot have insurance.",
-    rule9: "Standard shipping is only available for domestic packages under 2000g.",
-    rule10: "Fragile international packages over 1000g must use priority."
-  }
+  @type rule :: {atom(), %{atom() => any()}} | {:has_attr, [atom()]} | {:and | :or | :if, rule(), rule()}
 
-  def generate_package do
-    type = Enum.random([:letter, :parcel, :fragile])
-    weight = calculate_weight(type)
-    destination = Enum.random([:domestic, :eu, :international])
-    shipping_class = Enum.random([:standard, :express, :priority])
-    declared_value = Enum.random(value_range())
-    has_fragile_sticker = Enum.random([true, false])
-    has_customs_form = Enum.random([true, false])
-    has_insurance = Enum.random([true, false])
-
-    %Package{
-      type: type,
-      weight: weight,
-      destination: destination,
-      shipping_class: shipping_class,
-      declared_value: declared_value,
-      has_fragile_sticker: has_fragile_sticker,
-      has_customs_form: has_customs_form,
-      has_insurance: has_insurance
+  defp discrete_attributes_possible_values() do
+    %{
+      destination: [:domestic, :eu, :international],
+      type: [:letter, :parcel, :fragile],
+      shipping_class: [:standard, :express, :priority]
     }
   end
 
-  def validate(package, rules_to_apply) do
+  defp continuous_attributes_max_values() do
+    %{
+      declared_value: 400,
+      weight: 5000
+    }
+  end
+
+  defp additional_attributes() do
     [
-      rule1: &validate_rule1/1,
-      rule2: &validate_rule2/1,
-      rule3: &validate_rule3/1,
-      rule4: &validate_rule4/1,
-      rule5: &validate_rule5/1,
-      rule6: &validate_rule6/1,
-      rule7: &validate_rule7/1,
-      rule8: &validate_rule8/1,
-      rule9: &validate_rule9/1,
-      rule10: &validate_rule10/1
+      :customs_form,
+      :insurance,
+      :fragile_sticker
     ]
-    |> Enum.filter(fn {rule, _} -> rule in rules_to_apply end)
-    |> Enum.reduce_while({:valid, "success"}, fn {_rule, func}, acc ->
-      case func.(package) do
-        {:valid, _} -> {:cont, acc}
-        {:invalid, msg} -> {:halt, {:invalid, msg}}
-      end
+  end
+
+  defp primary_rule_tags() do
+    [
+      :equal,
+      :not_equal,
+      # :has_attr,
+      :greater,
+      :lesser
+    ]
+  end
+
+  defp logical_rule_tags() do
+    [
+      :if,
+      :or,
+      :and
+    ]
+  end
+
+  def generate_package() do
+    %School.Package{
+      type: Enum.random([:letter, :parcel, :fragile]),
+      weight: Enum.random(1..5000),
+      destination: Enum.random([:domestic, :eu, :international]),
+      shipping_class: Enum.random([:standard, :express, :priority]),
+      declared_value: Float.floor(:rand.uniform() * 400, 2),
+      additional: []
+    }
+  end
+
+  def validate_general(pattern, package, compare) do
+    package_map = Map.from_struct(package)
+
+    pattern
+    |> Enum.filter(fn {key, _} -> Map.has_key?(package_map, key) end)
+    |> Enum.count(fn {key, val} -> !compare.(Map.get(package_map, key), val) end) == 0
+  end
+
+  def validate_has_additional(list, package) do
+    list
+    |> Enum.count(fn val -> Enum.member?(package.additional, val) end) == length(list)
+  end
+
+  @spec validate(rule(), School.Package) :: boolean()
+  def validate({:equal, pattern}, package) do
+    validate_general(pattern, package, &Kernel.==/2)
+  end
+
+  def validate({:has_attr, list}, package) do
+    validate_has_additional(list, package)
+  end
+
+  def validate({:not_equal, pattern}, package) do
+    validate_general(pattern, package, &Kernel.!=/2)
+  end
+
+  def validate({:greater, pattern}, package) do
+    validate_general(pattern, package, &Kernel.>/2)
+  end
+
+  def validate({:lesser, pattern}, package) do
+    validate_general(pattern, package, &Kernel.</2)
+  end
+
+  def validate({:and, rule1, rule2}, package) do
+    validate(rule1, package) && validate(rule2, package)
+  end
+
+  def validate({:or, rule1, rule2}, package) do
+    validate(rule1, package) || validate(rule2, package)
+  end
+
+  def validate({:if, rule1, rule2}, package) do
+    if validate(rule1, package) do
+      validate(rule2, package)
+    else
+      true
+    end
+  end
+
+  @spec rule_description(rule(), boolean()) :: String.t()
+  def rule_description({:equal, rule}, absolute) do
+    rule
+    |> Enum.map(fn {key, val} -> "#{key} #{if absolute, do: "MUST be", else: "IS"} #{val}" end)
+    |> Enum.join(" and ")
+  end
+
+  def rule_description({:lesser, rule}, absolute) do
+    rule
+    |> Enum.map(fn {key, val} ->
+      "#{key} #{if absolute, do: "MUST be", else: "IS"} LESS than #{val}"
     end)
+    |> Enum.join(" and ")
   end
 
-  @type rule ::
-          :rule1 | :rule2 | :rule3 | :rule4 | :rule5 | :rule6 | :rule7 | :rule8 | :rule9 | :rule10
-  @spec descriptions_by_rules(list(rule())) :: list(String.t())
-  def descriptions_by_rules(rules) do
-    Enum.reduce(rules, [], fn rule, acc ->
-      desc = Map.get(@desc_rules, rule)
-      [desc | acc]
+  def rule_description({:greater, rule}, absolute) do
+    rule
+    |> Enum.map(fn {key, val} ->
+      "#{key} #{if absolute, do: "MUST be", else: "IS"} GREATER than #{val}"
     end)
+    |> Enum.join(" and ")
   end
 
-  defp validate_rule1(%{type: :letter, weight: weight}) do
-    if weight < 500 do
-      {:valid, "rule1"}
-    else
-      {:invalid, "Letter weights #{weight}g, max 499g"}
-    end
+  def rule_description({:not_equal, rule}, absolute) do
+    rule
+    |> Enum.map(fn {key, val} ->
+      "#{key} #{if absolute, do: "MUST NOT be", else: "IS NOT"} #{val}"
+    end)
+    |> Enum.join(" and ")
   end
 
-  defp validate_rule1(_), do: {:valid, "rule1"}
-
-  defp validate_rule2(%{destination: :international, has_customs_form: true}),
-    do: {:valid, "rule2"}
-
-  defp validate_rule2(%{destination: :international, has_customs_form: false}),
-    do: {:invalid, "Internation requires customs form"}
-
-  defp validate_rule2(_), do: {:valid, "rule2"}
-
-  defp validate_rule3(%{type: :fragile, shipping_class: :standard}),
-    do: {:invalid, "Fragile can't use standard shipping"}
-
-  defp validate_rule3(_), do: {:valid, "rule3"}
-
-  defp validate_rule4(%{type: :parcel, weight: weight, shipping_class: shipping_class})
-       when weight > 5000 do
-    if shipping_class == :priority do
-      {:valid, "rule4"}
-    else
-      {:invalid, "Parcel over 5000g (#{weight}g) must use priority shipping"}
-    end
+  def rule_description({:and, rule1, rule2}, absolute) do
+    "#{rule_description(rule1, absolute)} AND #{rule_description(rule2, absolute)}"
   end
 
-  defp validate_rule4(_), do: {:valid, "rule4"}
-
-  defp validate_rule5(%{declared_value: declared_value, has_insurance: has_insurance})
-       when declared_value > 100 do
-    if has_insurance do
-      {:valid, "rule5"}
-    else
-      {:invalid, "insurance required for value over 100$ (#{declared_value})"}
-    end
+  def rule_description({:or, rule1, rule2}, absolute) do
+    "#{rule_description(rule1, absolute)} OR #{rule_description(rule2, absolute)}"
   end
 
-  defp validate_rule5(_), do: {:valid, "rule5"}
-
-  defp validate_rule6(%{type: :fragile, has_fragile_sticker: true}), do: {:valid, "rule6"}
-
-  defp validate_rule6(%{type: :fragile, has_fragile_sticker: false}),
-    do: {:invalid, "missing fragile sticker for fragile package"}
-
-  defp validate_rule6(_), do: {:valid, "rule6"}
-
-  defp validate_rule7(%{destination: :eu, shipping_class: shipping_class})
-       when shipping_class in [:express, :priority],
-       do: {:valid, "rule7"}
-
-  defp validate_rule7(%{destination: :international, shipping_class: shipping_class})
-       when shipping_class in [:express, :priority],
-       do: {:valid, "rule7"}
-
-  defp validate_rule7(%{destination: destination, shipping_class: shipping_class})
-       when destination in [:eu, :international],
-       do: {:invalid, "#{destination} has wrong shipping class: #{shipping_class}"}
-
-  defp validate_rule7(_package), do: {:valid, "rule7"}
-
-  defp validate_rule8(%{type: :letter, has_insurance: true}),
-    do: {:invalid, "letters can't have insurance"}
-
-  defp validate_rule8(_package), do: {:valid, "rule8"}
-
-  defp validate_rule9(%{shipping_class: :standard, destination: :domestic, weight: weight}) do
-    if weight < 2000 do
-      {:valid, "rule9"}
-    else
-      {:invalid, "standard shipping is only available for domestic package under 2000g"}
-    end
+  def rule_description({:if, rule1, rule2}, _) do
+    "IF #{rule_description(rule1, false)}, THEN #{rule_description(rule2, true)}"
   end
 
-  defp validate_rule9(%{shipping_class: :standard}),
-    do: {:invalid, "standard shipping is only available for domestic package under 2000g"}
-
-  defp validate_rule9(_package), do: {:valid, "rule9"}
-
-  defp validate_rule10(%{
-         type: :fragile,
-         destination: :international,
-         shipping_class: shipping_class,
-         weight: weight
-       })
-       when weight > 1000 do
-    if shipping_class == :priority,
-      do: {:valid, "rule10"},
-      else: {:invalid, "fragile internationle packages over 1000g must use priority"}
+  def rule_description_set(rules) do
+    rules
+    |> Enum.map(fn rule -> rule_description(rule, true) end)
   end
 
-  defp validate_rule10(_package) do
-    {:valid, "rule10"}
+  def validate_set(rules, package) do
+    rules
+    |> Enum.reduce(true, fn x, val -> val && validate(x, package) end)
   end
 
-  defp calculate_weight(:letter), do: Enum.random(1..600)
-  defp calculate_weight(_), do: Enum.random(1..10000)
+  @spec random_rule(atom()) :: rule()
+  def random_rule(tag) when tag == :equal or tag == :not_equal do
+    key = Enum.random(Map.keys(discrete_attributes_possible_values()))
 
-  defp value_range do
-    10..4000
-    |> Range.to_list()
-    |> build_value_range([])
-    |> Enum.reverse()
+    {tag,
+     Map.put(
+       %{},
+       key,
+       Enum.random(discrete_attributes_possible_values()[key])
+     )}
   end
 
-  defp build_value_range([], acc), do: acc
+  def random_rule(tag) when tag == :lesser or tag == :greater do
+    key = Enum.random(Map.keys(continuous_attributes_max_values()))
 
-  defp build_value_range([hd | tl], acc) do
-    to_float = hd / 10
-    new_acc = [to_float | acc]
+    {
+      tag,
+      Map.put(
+        %{},
+        key,
+        :rand.uniform(continuous_attributes_max_values()[key])
+      )
+    }
+  end
 
-    build_value_range(tl, new_acc)
+  def random_rule(:has_attr) do
+    {
+      :has_attr,
+      Enum.random(additional_attributes())
+    }
+  end
+
+  def random_rule(tag) when tag == :or or tag == :and or tag == :if do
+    {
+      tag,
+      random_rule(Enum.random(primary_rule_tags())),
+      random_rule(Enum.random(primary_rule_tags()))
+    }
+  end
+
+  @spec random_rule() :: rule()
+  def random_rule() do
+    flip = :rand.uniform()
+    if flip > 0.5, do: random_rule(Enum.random(logical_rule_tags())),
+                    else: random_rule(Enum.random(primary_rule_tags()))
+  end
+
+  def random_rules(count \\ 3) do
+    if count == 0, do: [], else: [random_rule() | random_rules(count-1)]
   end
 end
