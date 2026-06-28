@@ -249,7 +249,7 @@ defmodule SchoolWeb.GameComponents do
             <span class="final-score">{player.score} pts</span>
           </li>
         </ul>
-        <button class="btn-new-match">New Match</button>
+        <button phx-click="new-match" class="btn-new-match">New Match</button>
       </div>
     </div>
     """

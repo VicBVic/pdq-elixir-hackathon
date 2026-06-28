@@ -92,7 +92,16 @@ defmodule SchoolWeb.MainLive do
   end
 
   @impl true
-  def handle_event("refresh", _parames, socket) do
+  def handle_event("new-match", _params, socket) do
+    new_socket =
+      socket
+      |> assign(:game_state, State.get_game_state())
+
+    {:noreply, new_socket}
+  end
+
+  @impl true
+  def handle_event("refresh", _params, socket) do
     new_socket =
       socket
       |> assign(:rules_for_selection, Logic.random_rules())
@@ -142,7 +151,6 @@ defmodule SchoolWeb.MainLive do
 
     active_rules = State.get_active_rules()
     active_players = State.get_active_players()
-    game_state = State.get_game_state()
     rule_descriptions = Logic.rule_description_set(active_rules)
 
     updated_local_player = Map.get(full_state.players, self())
@@ -152,12 +160,12 @@ defmodule SchoolWeb.MainLive do
       |> assign(:local_player, updated_local_player)
       |> assign(:timestamp, nil)
       |> assign(:is_correct, true)
-      |> assign(:game_state, game_state)
       |> assign(:active_rules, active_rules)
       |> assign(:rule_descriptions, rule_descriptions)
       |> assign(:score, 0)
       |> assign(:waiting_for_other_players, false)
       |> assign(:player_list, active_players)
+      |> assign(:game_state, :ended)
 
     {:noreply, new_socket}
   end
