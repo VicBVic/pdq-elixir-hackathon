@@ -265,7 +265,7 @@ defmodule SchoolWeb.GameComponents do
   def sabotage(assigns) do
     ~H"""
        <div class = "sabotage">
-          <h1> Sabotage round! Choose an effect: </h1>
+          <h1> Sabotage round! Choose an effect for other players: </h1>
             <ul class = "sabotage-list">
               <li class = "sabotage-item">
                 <button class = "sabotage-button" phx-click="sabotage-completed" phx-value-index="1">

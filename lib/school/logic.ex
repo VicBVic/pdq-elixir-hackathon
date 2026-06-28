@@ -189,7 +189,7 @@ defmodule School.Logic do
       Map.put(
         %{},
         key,
-        :rand.uniform(continuous_attributes_max_values()[key])
+        trunc(Enum.random(1..9)* (continuous_attributes_max_values()[key]/10))
       )
     }
   end

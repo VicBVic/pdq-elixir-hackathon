@@ -57,8 +57,8 @@ defmodule School.State do
         new_players = Map.put(state.players, pid, player)
         next_tag = if total_selected == map_size(state.players), do: :running, else: :selecting
 
-        new_players = Map.new(new_players, fn {pid, player} -> 
-          {pid, %{player | rules: [rule | player.rules]}} 
+        new_players = Map.new(new_players, fn {pid, player} ->
+          {pid, %{player | rules: [rule | player.rules]}}
         end)
 
         state = %{
@@ -128,9 +128,9 @@ defmodule School.State do
 
   @impl true
   def handle_call({:get_rules, pid}, _from, state) do
-    rules = if Map.get(state.players, pid) == nil do 
-      [] 
-    else 
+    rules = if Map.get(state.players, pid) == nil do
+      []
+    else
       state.players[pid].rules end
 
      {:reply, rules, state}
@@ -211,7 +211,7 @@ defmodule School.State do
     GenServer.call(__MODULE__, {:rule_selected, rule, pid})
   end
 
-  
+
   def sabotage_selected(pid, index) do
     GenServer.cast(__MODULE__, {:sabotage_selected, pid, index})
   end
@@ -220,8 +220,12 @@ defmodule School.State do
   def handle_cast({:sabotage_selected, pid, index}, state) do
     case index do
       "1" -> true
-      "2" -> true
-      "3" -> true
+      "2" -> {
+        Phoenix.PubSub.broadcast(School.PubSub, "sabotage", {:new_rule, pid})
+      }
+      "3" -> {
+        Phoenix.PubSub.broadcast(School.PubSub, "sabotage", {:modify_rule, pid})
+      }
       _ -> true
     end
 

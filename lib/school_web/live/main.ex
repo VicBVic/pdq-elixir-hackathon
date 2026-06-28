@@ -11,6 +11,7 @@ defmodule SchoolWeb.MainLive do
     package = Logic.generate_package()
 
     Phoenix.PubSub.subscribe(School.PubSub, "game_room")
+    Phoenix.PubSub.subscribe(School.PubSub, "sabotage")
 
     active_players = State.get_active_players()
     game_state = State.get_game_state()
@@ -216,15 +217,22 @@ defmodule SchoolWeb.MainLive do
     {:noreply, new_socket}
   end
 
+  @impl true
   def handle_info({:update_player_list, updated_player_list}, socket) do
     new_socket =
       socket
       |> assign(:player_list, updated_player_list)
       |> assign(:game_state, State.get_game_state())
-
-
-
     {:noreply, new_socket}
+  end
+
+  @impl true
+  def handle_info({:sabotage_new_rule, pid}, socket) do
+    if pid == self() do
+      {:noreply, socket}
+    else
+      {:noreply, socket}
+    end
   end
 
   defp validation(swipe_direction, expected, socket) do
