@@ -147,6 +147,31 @@ defmodule School.State do
   end
 
   @impl true
+  def handle_cast({:sabotage_new_rule, rule, pid}, state) do
+    player = Map.get(state.players, pid)
+    if state.tag != :running do
+      {:noreply, state}
+    else
+      if player == nil do
+        {:noreply, state}
+      else
+        new_players = Map.new(state.players, fn {p_pid, player} ->
+          if p_pid == pid, do: {p_pid, %{player | rules: [rule | player.rules]}}, else: {p_pid, player}
+        end)
+
+        state = %{
+          state
+          | players: new_players,
+        }
+
+        Phoenix.PubSub.broadcast(School.PubSub, "game_room", :update_rules)
+
+        {:noreply, state}
+      end
+    end
+  end
+
+  @impl true
   def handle_info(:clock_tick, state) do
     if state.tag != :running do
       {:noreply, state}
@@ -221,10 +246,10 @@ defmodule School.State do
     case index do
       "1" -> true
       "2" -> {
-        Phoenix.PubSub.broadcast(School.PubSub, "sabotage", {:new_rule, pid})
+        Phoenix.PubSub.broadcast(School.PubSub, "sabotage", {:sabotage_new_rule, pid})
       }
       "3" -> {
-        Phoenix.PubSub.broadcast(School.PubSub, "sabotage", {:modify_rule, pid})
+        Phoenix.PubSub.broadcast(School.PubSub, "sabotage", {:stabotage_modify_rule, pid})
       }
       _ -> true
     end
@@ -232,6 +257,10 @@ defmodule School.State do
     {:noreply, state}
   end
 
+
+  def sabotage_new_rule(pid) do
+    GenServer.cast(__MODULE__, {:sabotage_new_rule, School.Logic.random_rule(), pid})
+  end
 
   def max_game_time do
     @max_time

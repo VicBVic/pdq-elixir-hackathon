@@ -231,6 +231,7 @@ defmodule SchoolWeb.MainLive do
     if pid == self() do
       {:noreply, socket}
     else
+      State.sabotage_new_rule(self())
       {:noreply, socket}
     end
   end
