@@ -12,18 +12,20 @@ defmodule School.State do
   @type t :: %School.State{
           tag: :initial | :selecting | :running | :finished,
           players: %{pid() => School.Player.t()},
-          rules: [School.Logic.rule()]
         }
 
   defstruct tag: :initial,
             players: %{},
-            rules: [],
             ready: 0,
             selected: 0,
             time: 0
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %__MODULE__{}, name: __MODULE__)
+  end
+
+  def sabotage_seleceted(rule, pid, sabotage) do
+    GenServer.call(__MODULE__, {:sabotage_selected, rule, pid})
   end
 
   @impl true
@@ -55,14 +57,18 @@ defmodule School.State do
         {:reply, {player, state.tag}, state}
       else
         player = %{player | selected?: true}
+
         total_selected = state.selected + 1
         new_players = Map.put(state.players, pid, player)
         next_tag = if total_selected == map_size(state.players), do: :running, else: :selecting
 
+        new_players = Map.new(new_players, fn {pid, player} -> 
+          {pid, %{player | rules: [rule | player.rules]}} 
+        end)
+
         state = %{
           state
-          | rules: [rule | state.rules],
-            players: new_players,
+          | players: new_players,
             tag: next_tag,
             selected: total_selected
         }
@@ -88,7 +94,7 @@ defmodule School.State do
         {:reply, {player, nil}, state}
       else
         correct_decision =
-          if School.Logic.validate_set(state.rules, package), do: :valid, else: :invalid
+          if School.Logic.validate_set(state.players[pid].rules, package), do: :valid, else: :invalid
 
         was_correct = correct_decision == decision
         delta = if was_correct, do: 1, else: -1
@@ -126,8 +132,13 @@ defmodule School.State do
   end
 
   @impl true
-  def handle_call({:get_rules}, _from, state) do
-     {:reply, state.rules, state}
+  def handle_call({:get_rules, pid}, _from, state) do
+    rules = if Map.get(state.players, pid) == nil do 
+      [] 
+    else 
+      state.players[pid].rules end
+
+     {:reply, rules, state}
   end
 
   @impl true
@@ -189,8 +200,8 @@ defmodule School.State do
     GenServer.call(__MODULE__, {:update_score, pid, decision, package})
   end
 
-  def get_active_rules() do
-    GenServer.call(__MODULE__, {:get_rules})
+  def get_active_rules(pid) do
+    GenServer.call(__MODULE__, {:get_rules, pid})
   end
 
   def get_active_players() do
@@ -211,11 +222,10 @@ defmodule School.State do
 
   def end_game(state) do
     players = state.players
-    |> Enum.map(fn {key, value} -> {key, %{value | ready?: :false, selected?: :false, score: 0}} end)
+    |> Enum.map(fn {key, value} -> {key, %{value | ready?: :false, selected?: :false, score: 0, rules: []}} end)
     |> Enum.into(%{})
 
-    state = %{state | tag: :initial, time: 0, players: players, rules: [], ready: 0,selected: 0}
-
+    state = %{state | tag: :initial, time: 0, players: players, ready: 0,selected: 0}
 
     Phoenix.PubSub.broadcast(School.PubSub, "game_room", {:game_ended, state})
 

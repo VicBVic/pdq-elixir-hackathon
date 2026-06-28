@@ -12,9 +12,9 @@ defmodule SchoolWeb.MainLive do
 
     Phoenix.PubSub.subscribe(School.PubSub, "game_room")
 
-    active_rules = State.get_active_rules()
     active_players = State.get_active_players()
     game_state = State.get_game_state()
+    active_rules = State.get_active_rules(self())
     rule_descriptions = Logic.rule_description_set(active_rules)
 
     new_socket =
@@ -169,7 +169,7 @@ defmodule SchoolWeb.MainLive do
   @impl true
   def handle_info({:game_ended, full_state}, socket) do
 
-    active_rules = State.get_active_rules()
+    active_rules = State.get_active_rules(self())
     active_players = State.get_active_players()
     rule_descriptions = Logic.rule_description_set(active_rules)
 
@@ -204,7 +204,7 @@ defmodule SchoolWeb.MainLive do
 
   @impl true
   def handle_info(:update_rules, socket) do
-    active_rules = State.get_active_rules()
+    active_rules = State.get_active_rules(self())
     rule_descriptions = Logic.rule_description_set(active_rules)
 
     new_socket =

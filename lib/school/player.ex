@@ -4,12 +4,14 @@ defmodule School.Player do
           score: integer(),
           pid: pid(),
           ready?: boolean(),
-          selected?: boolean()
+          selected?: boolean(),
+          rules: [School.Logic.rule()]
         }
 
   defstruct name: nil,
             score: 0,
             pid: nil,
             ready?: false,
-            selected?: false
+            selected?: false,
+            rules: []
 end
