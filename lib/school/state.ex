@@ -153,8 +153,7 @@ defmodule School.State do
       Phoenix.PubSub.broadcast(School.PubSub, "game_room", {:time_updated, time})
 
       if time >= @max_time do
-        state = %{state | tag: :initial, time: 0}
-        Phoenix.PubSub.broadcast(School.PubSub, "game_room", {:game_ended, state.tag})
+        state = end_game(state)
         {:noreply, state}
       else
         {:noreply, state}
@@ -172,9 +171,10 @@ defmodule School.State do
 
     new_players = Map.delete(state.players, pid)
     Phoenix.PubSub.broadcast(School.PubSub, "game_room", {:update_player_list, Map.values(new_players)})
-    next_tag = if map_size(new_players) == 0, do: :initial, else: state.tag
+    state = %{state | players: new_players}
+    state = if map_size(new_players) == 0, do: end_game(state), else: state
 
-    {:noreply, %{state | tag: next_tag, players: new_players}}
+    {:noreply, state}
   end
 
   def player_ready(pid) do
@@ -207,5 +207,18 @@ defmodule School.State do
 
   def max_game_time do
     @max_time
+  end
+
+  def end_game(state) do
+    players = state.players
+    |> Enum.map(fn {key, value} -> {key, %{value | ready?: :false, selected?: :false, score: 0}} end)
+    |> Enum.into(%{})
+
+    state = %{state | tag: :initial, time: 0, players: players, rules: [], ready: 0,selected: 0}
+
+
+    Phoenix.PubSub.broadcast(School.PubSub, "game_room", {:game_ended, state})
+
+    state
   end
 end

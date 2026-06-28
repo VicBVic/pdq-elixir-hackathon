@@ -138,11 +138,26 @@ defmodule SchoolWeb.MainLive do
   end
 
   @impl true
-  def handle_info({:game_ended, game_state}, socket) do
+  def handle_info({:game_ended, full_state}, socket) do
+
+    active_rules = State.get_active_rules()
+    active_players = State.get_active_players()
+    game_state = State.get_game_state()
+    rule_descriptions = Logic.rule_description_set(active_rules)
+
+    updated_local_player = Map.get(full_state.players, self())
+
     new_socket =
       socket
+      |> assign(:local_player, updated_local_player)
+      |> assign(:timestamp, nil)
+      |> assign(:is_correct, true)
       |> assign(:game_state, game_state)
-      |> assign(:local_player, nil)
+      |> assign(:active_rules, active_rules)
+      |> assign(:rule_descriptions, rule_descriptions)
+      |> assign(:score, 0)
+      |> assign(:waiting_for_other_players, false)
+      |> assign(:player_list, active_players)
 
     {:noreply, new_socket}
   end
@@ -176,6 +191,8 @@ defmodule SchoolWeb.MainLive do
       socket
       |> assign(:player_list, updated_player_list)
       |> assign(:game_state, State.get_game_state())
+
+
 
     {:noreply, new_socket}
   end
