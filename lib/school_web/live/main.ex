@@ -195,11 +195,11 @@ defmodule SchoolWeb.MainLive do
 
   @impl true
   def handle_info({:time_updated, current_game_time}, socket) do
-    width = build_game_time_loading_bar(current_game_time)
+    width = build_game_time_loading_bar(State.max_game_time() - current_game_time)
 
     new_socket =
       socket
-      |> push_event("timer-tick", %{time: current_game_time, width: width})
+      |> push_event("timer-tick", %{time: State.max_game_time() - current_game_time, width: width})
 
     {:noreply, new_socket}
   end
