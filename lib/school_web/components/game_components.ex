@@ -23,14 +23,15 @@ defmodule SchoolWeb.GameComponents do
     """
   end
 
+  attr(:max_time, :integer, required: true)
   def match_time_remaining(assigns) do
     ~H"""
     <div class="card-timer-section">
       <span class="card-timer-label">Match time remaining</span>
       <div class="card-timer-track">
-        <div class="card-timer-fill" style="width: 0%;"></div>
+        <div class="card-timer-fill" style="width: 100%;"></div>
       </div>
-      <span class="card-timer-seconds">0s</span>
+      <span class="card-timer-seconds">{@max_time}s</span>
     </div>
     """
   end
