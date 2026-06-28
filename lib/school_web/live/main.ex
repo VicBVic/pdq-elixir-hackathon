@@ -118,6 +118,7 @@ defmodule SchoolWeb.MainLive do
       socket
       |> assign(:game_state, :running)
     Process.send(self(), :next_package, [])
+    State.sabotage_selected(self(), index)
     {:noreply, new_socket}
   end
 

@@ -24,10 +24,6 @@ defmodule School.State do
     GenServer.start_link(__MODULE__, %__MODULE__{}, name: __MODULE__)
   end
 
-  def sabotage_seleceted(rule, pid, sabotage) do
-    GenServer.call(__MODULE__, {:sabotage_selected, rule, pid})
-  end
-
   @impl true
   def init(_) do
     Phoenix.PubSub.subscribe(School.PubSub, "clock")
@@ -48,7 +44,6 @@ defmodule School.State do
   @impl true
   def handle_call({:rule_selected, rule, pid}, _from, state) do
     player = Map.get(state.players, pid)
-
     if state.tag != :selecting do
       {:reply, {player, state.tag}, state}
     else
@@ -215,6 +210,24 @@ defmodule School.State do
   def rule_selected(rule, pid) do
     GenServer.call(__MODULE__, {:rule_selected, rule, pid})
   end
+
+  
+  def sabotage_selected(pid, index) do
+    GenServer.cast(__MODULE__, {:sabotage_selected, pid, index})
+  end
+
+  @impl true
+  def handle_cast({:sabotage_selected, pid, index}, state) do
+    case index do
+      "1" -> true
+      "2" -> true
+      "3" -> true
+      _ -> true
+    end
+
+    {:noreply, state}
+  end
+
 
   def max_game_time do
     @max_time
