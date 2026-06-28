@@ -236,6 +236,9 @@ defmodule School.State do
     GenServer.call(__MODULE__, {:rule_selected, rule, pid})
   end
 
+  def sabotage_shuffle_rules(pid) do
+    GenServer.cast(__MODULE__, {:sabotage_shuffle_rules, pid})
+  end
 
   def sabotage_selected(pid, index) do
     GenServer.cast(__MODULE__, {:sabotage_selected, pid, index})
@@ -244,7 +247,9 @@ defmodule School.State do
   @impl true
   def handle_cast({:sabotage_selected, pid, index}, state) do
     case index do
-      "1" -> true
+      "1" -> {
+        Phoenix.PubSub.broadcast(School.PubSub, "sabotage", {:shuffle_rules, pid})
+      }
       "2" -> {
         Phoenix.PubSub.broadcast(School.PubSub, "sabotage", {:sabotage_new_rule, pid})
       }
@@ -257,6 +262,15 @@ defmodule School.State do
     {:noreply, state}
   end
 
+  @impl true
+  def handle_cast({:sabotage_shuffle_rules, pid}, state) do
+    player = state.players[pid]
+    new_player = Map.put(player, :rules, Enum.shuffle(player.rules))
+
+    Phoenix.PubSub.broadcast(School.PubSub, "game_room", :update_rules)
+
+    {:noreply, state}
+  end
 
   def sabotage_new_rule(pid) do
     GenServer.cast(__MODULE__, {:sabotage_new_rule, School.Logic.random_rule(), pid})

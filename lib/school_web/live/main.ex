@@ -195,11 +195,11 @@ defmodule SchoolWeb.MainLive do
 
   @impl true
   def handle_info({:time_updated, current_game_time}, socket) do
-    width = build_game_time_loading_bar(State.max_game_time() - current_game_time)
+    width = build_game_time_loading_bar(current_game_time)
 
     new_socket =
       socket
-      |> push_event("timer-tick", %{time: State.max_game_time() - current_game_time, width: width})
+      |> push_event("timer-tick", %{time: current_game_time, width: width})
 
     {:noreply, new_socket}
   end
@@ -236,6 +236,15 @@ defmodule SchoolWeb.MainLive do
     end
   end
 
+  def handle_info({:shuffle_rules, pid}, socket) do
+    if pid == self() do
+      {:noreply, socket}
+    else
+      State.sabotage_shuffle_rules(self())
+      {:noreply, socket}
+    end
+  end
+
   defp validation(swipe_direction, expected, socket) do
     package = socket.assigns.package
 
@@ -253,16 +262,13 @@ defmodule SchoolWeb.MainLive do
       |> assign(:score, updated_player.score)
       |> push_event(swipe_direction, %{})
 
-    if total_correct == 2 do
-      new_socket =
-        new_socket
-        |> assign(:total_correct, 0)
+    if total_correct > 0 && rem(total_correct, 2) == 0 do
       Process.send_after(self(), :sabotage_round, 1_000)
-      new_socket
     else
       Process.send_after(self(), :next_package, 1_000)
-      new_socket
     end
+
+    new_socket
   end
 
   def build_game_time_loading_bar(game_time) do
