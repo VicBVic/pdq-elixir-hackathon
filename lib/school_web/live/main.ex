@@ -242,7 +242,7 @@ defmodule SchoolWeb.MainLive do
       |> assign(:score, updated_player.score)
       |> push_event(swipe_direction, %{})
 
-    if rem(total_correct, 2) == 0 do
+    if total_correct > 0 && rem(total_correct, 2) == 0 do
       Process.send_after(self(), :sabotage_round, 1_000)
     else
       Process.send_after(self(), :next_package, 1_000)

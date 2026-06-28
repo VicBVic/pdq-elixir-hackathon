@@ -1279,7 +1279,7 @@ body {
 
 /* ============= 4. RULE SELECTION =============== */
 
-h1{
+h1 {
   font-family: 'Special Elite', cursive;
   font-size: 40px;
   color: white;
@@ -1305,6 +1305,7 @@ h1{
   font-size: 14px;
   background: var(--paper-white);
   box-shadow: var(--shadow-sm);
+  
 }
 
 .rule-selection-item:hover {
@@ -1342,4 +1343,55 @@ h1{
   border-color: var(--ink-soft);
   color: var(--ink);
   background: rgba(245, 230, 200, 0.1);
+}
+
+/* =========== SABOTAGE SECTION ============== */
+.sabotage {
+  margin-top: 20px;
+  padding: 2rem;
+  text-align: center;
+  background: var(--paper-white);
+  border-radius: 0px;
+  color: var(--ink-soft);
+}
+
+.sabotage h1 {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.sabotage-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sabotage-item {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sabotage-button {
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  border: 3px solid var(--ink-soft);
+  color: var(--ink-soft);
+  border-radius: 0px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.sabotage-button:hover {
+  background: transparent;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.sabotage-button:active {
+  transform: translateY(0);
 }
