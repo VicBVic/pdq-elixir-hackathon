@@ -16,24 +16,27 @@
   <%= cond do %>
   <% @local_player && @waiting_for_other_players -> %>
     <.waiting_for_other_players />
-  <% @local_player && @game_state == :running -> %>
+  <% @local_player && (@game_state == :running || @game_state == :sabotage) -> %>
     <section class="inspection-area">
       <.score_banner player_name={@local_player.name} score={@score} />
 
-      <.match_time_remaining />
+      <.match_time_remaining timestamp={@timestamp} max_time={@max_time}/>
+
+      <%= cond do %>
+      <% @game_state == :sabotage -> %>
+        <.sabotage />
+      <% true -> %>
+
 
       <.package_inspection_form
         package={@package}
         timestamp={@timestamp}
         is_correct={@is_correct}
       />
+      <% end %>
     </section>
   <% @local_player && @game_state == :sabotage -> %>
-    <section class="sabotage-area">
-      <.score_banner player_name={@local_player.name} score={@score} />
-      <.match_time_remaining />
-      <.sabotage />
-    </section>
+   
   <% @local_player &&@game_state == :selecting -> %>
     <.rules_selection local_player={@local_player} rules_for_selection={@rules_for_selection}/>
   <% !@local_player && @game_state != :initial -> %>

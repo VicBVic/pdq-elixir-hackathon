@@ -21,13 +21,14 @@ defmodule SchoolWeb.MainLive do
       socket
       |> assign(:local_player, nil)
       |> assign(:package, package)
-      |> assign(:timestamp, nil)
+      |> assign(:timestamp, 0)
       |> assign(:total_correct, 0)
       |> assign(:is_correct, true)
       |> assign(:game_state, game_state)
       |> assign(:active_rules, active_rules)
       |> assign(:rule_descriptions, rule_descriptions)
       |> assign(:score, 0)
+      |> assign(:max_time, State.max_game_time())
       |> assign(:waiting_for_other_players, false)
       |> assign(:player_list, active_players)
 
@@ -177,7 +178,7 @@ defmodule SchoolWeb.MainLive do
     new_socket =
       socket
       |> assign(:local_player, updated_local_player)
-      |> assign(:timestamp, nil)
+      |> assign(:timestamp, 0)
       |> assign(:is_correct, true)
       |> assign(:active_rules, active_rules)
       |> assign(:rule_descriptions, rule_descriptions)
