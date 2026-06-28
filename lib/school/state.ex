@@ -8,7 +8,7 @@ defmodule School.State do
   # :running  <---- (make players unable to join here!!)
   # :finished
 
-  @max_time 5
+  @max_time 30
   @type t :: %School.State{
           tag: :initial | :selecting | :running | :finished,
           players: %{pid() => School.Player.t()},

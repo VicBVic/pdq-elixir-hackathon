@@ -1,8 +1,8 @@
 defmodule SchoolWeb.GameComponents do
   use Phoenix.Component
 
-  attr :player_name, :string, required: true
-  attr :score, :integer, required: true
+  attr(:player_name, :string, required: true)
+  attr(:score, :integer, required: true)
 
   def score_banner(assigns) do
     ~H"""
@@ -35,9 +35,9 @@ defmodule SchoolWeb.GameComponents do
     """
   end
 
-  attr :package, :map, required: true
-  attr :timestamp, :integer, required: true
-  attr :is_correct, :atom, required: true
+  attr(:package, :map, required: true)
+  attr(:timestamp, :integer, required: true)
+  attr(:is_correct, :atom, required: true)
 
   @spec package_inspection_form(map()) :: Phoenix.LiveView.Rendered.t()
   def package_inspection_form(assigns) do
@@ -127,7 +127,7 @@ defmodule SchoolWeb.GameComponents do
     """
   end
 
-  attr :local_player, :map, default: nil
+  attr(:local_player, :map, default: nil)
 
   def ready_section(assigns) do
     ~H"""
@@ -172,7 +172,7 @@ defmodule SchoolWeb.GameComponents do
     """
   end
 
-  attr :rule_descriptions, :list, required: true
+  attr(:rule_descriptions, :list, required: true)
 
   def postal_regulations(assigns) do
     ~H"""
@@ -192,8 +192,8 @@ defmodule SchoolWeb.GameComponents do
     """
   end
 
-  attr :player_list, :list, required: true
-  attr :game_state, :atom, required: true
+  attr(:player_list, :list, required: true)
+  attr(:game_state, :atom, required: true)
 
   def leaderboard(assigns) do
     ~H"""
@@ -216,8 +216,6 @@ defmodule SchoolWeb.GameComponents do
     """
   end
 
-
-  
   def wait_for_round_to_end(assigns) do
     ~H"""
       <div class = "round-end-wait">
@@ -235,7 +233,7 @@ defmodule SchoolWeb.GameComponents do
     """
   end
 
-  attr :player_list, :list, required: true
+  attr(:player_list, :list, required: true)
 
   def match_end_overlay(assigns) do
     ~H"""
@@ -262,17 +260,39 @@ defmodule SchoolWeb.GameComponents do
   def get_medal(place) do
     Enum.at(["🥇", "🥈", "🥉"], place)
   end
+
+  def sabotage(assigns) do
+    ~H"""
+       <div class = "sabotage">
+          <h1> Sabotage round! Choose an effect: </h1>
+            <ul class = "sabotage-list">
+              <li class = "sabotage-item">
+                <button class = "sabotage-button" phx-click="sabotage-completed" phx-value-index="1">
+                  Shuffle the rules
+                </button>
+                <button class = "sabotage-button" phx-click="sabotage-completed" phx-value-index="2">
+                  Add new rule
+                </button>
+                <button class = "sabotage-button" phx-click="sabotage-completed" phx-value-index="3">
+                  Mutate existing rule
+                </button>
+              </li>
+            </ul>
+        </div>
+    """
+  end
+
 end
 
 
 # <div class="package-checks">
-        #   <span :if={@package.has_customs_form} class="check-tag has">
-        #     <span class="check-dot"></span> Customs Form
-        #   </span>
-        #   <span :if={@package.has_insurance} class="check-tag has">
-        #     <span class="check-dot"></span> Insurance
-        #   </span>
-        #   <span :if={@package.has_fragile_sticker} class="check-tag has">
-        #     <span class="check-dot"></span> Fragile Sticker
-        #   </span>
-        # </div>
+#   <span :if={@package.has_customs_form} class="check-tag has">
+#     <span class="check-dot"></span> Customs Form
+#   </span>
+#   <span :if={@package.has_insurance} class="check-tag has">
+#     <span class="check-dot"></span> Insurance
+#   </span>
+#   <span :if={@package.has_fragile_sticker} class="check-tag has">
+#     <span class="check-dot"></span> Fragile Sticker
+#   </span>
+# </div>

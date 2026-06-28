@@ -22,6 +22,7 @@ defmodule SchoolWeb.MainLive do
       |> assign(:local_player, nil)
       |> assign(:package, package)
       |> assign(:timestamp, nil)
+      |> assign(:total_correct, 0)
       |> assign(:is_correct, true)
       |> assign(:game_state, game_state)
       |> assign(:active_rules, active_rules)
@@ -110,6 +111,16 @@ defmodule SchoolWeb.MainLive do
   end
 
   @impl true
+  def handle_event("sabotage-completed", %{"index" => index}, socket) do
+    :TODO
+    new_socket =
+      socket
+      |> assign(:game_state, :running)
+    Process.send(self(), :next_package, [])
+    {:noreply, new_socket}
+  end
+
+  @impl true
   def handle_info(:next_package, socket) do
     package = Logic.generate_package()
 
@@ -118,6 +129,14 @@ defmodule SchoolWeb.MainLive do
       |> assign(:package, package)
       |> push_event("reset-package-card", %{})
 
+    {:noreply, new_socket}
+  end
+
+  @impl true
+  def handle_info(:sabotage_round, socket) do
+    new_socket =
+      socket
+      |> assign(:game_state, :sabotage)
     {:noreply, new_socket}
   end
 
@@ -163,6 +182,7 @@ defmodule SchoolWeb.MainLive do
       |> assign(:active_rules, active_rules)
       |> assign(:rule_descriptions, rule_descriptions)
       |> assign(:score, 0)
+      |> assign(:total_correct, 0)
       |> assign(:waiting_for_other_players, false)
       |> assign(:player_list, active_players)
       |> assign(:game_state, :ended)
@@ -211,15 +231,22 @@ defmodule SchoolWeb.MainLive do
     {updated_player, is_correct} =
       State.update_player_score(self(), package, expected)
 
+    total_correct = socket.assigns.total_correct + (if is_correct, do: 1, else: 0)
+
     new_socket =
       socket
       |> assign(:is_correct, is_correct)
       |> assign(:validation_msg, "TODO")
+      |> assign(:total_correct, total_correct)
       |> assign(:local_player, updated_player)
       |> assign(:score, updated_player.score)
       |> push_event(swipe_direction, %{})
 
-    Process.send_after(self(), :next_package, 1_000)
+    if rem(total_correct, 2) == 0 do
+      Process.send_after(self(), :sabotage_round, 1_000)
+    else
+      Process.send_after(self(), :next_package, 1_000)
+    end
 
     new_socket
   end

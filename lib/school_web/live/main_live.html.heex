@@ -28,6 +28,12 @@
         is_correct={@is_correct}
       />
     </section>
+  <% @local_player && @game_state == :sabotage -> %>
+    <section class="sabotage-area">
+      <.score_banner player_name={@local_player.name} score={@score} />
+      <.match_time_remaining />
+      <.sabotage />
+    </section>
   <% @local_player &&@game_state == :selecting -> %>
     <.rules_selection local_player={@local_player} rules_for_selection={@rules_for_selection}/>
   <% !@local_player && @game_state != :initial -> %>
